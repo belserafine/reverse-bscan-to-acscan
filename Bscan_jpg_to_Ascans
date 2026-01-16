@@ -1,0 +1,24 @@
+function A_scans = Bscan_jpg_to_Ascans(jpg_file)
+% extracts A-scans from a B-scan JPG image
+% input : path to b-scan jpg
+% output : matrix of A-scans, where each row = one A-scan (depth profile)
+%
+% notes:
+% - assumes the B-scan is vertical-depth, horizontal-lateral
+% - image is assumed to be in display space (0–255 or 0–1)
+
+    % read image
+    I = imread(jpg_file); % stored as height x width = depth x lateral
+    
+    % size(I) % image is RGB 496 768 3
+    % we convert to gray to convert I from N-D to 2D array
+    if ndims(I) == 3
+        I = rgb2gray(I);
+    end
+
+    % convert to double
+    I = double(I);
+
+    % convert row x column = lateral x depth
+    A_scans = I.'; % transpose
+end
