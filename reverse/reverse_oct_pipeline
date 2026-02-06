@@ -20,8 +20,8 @@ function interferogram = reverse_oct_pipeline(a_scan_processed)
     
     % dispersion phase
     k0 = mean(lambda); % center wavenumber of the source spectrum
-    a2 = 1;
-    a3 = 1;
+    a2 = 0;
+    a3 = 0;
     phi_disp = a2*(k-k0).^2 + a3*(k-k0).^3;
     
     %% STEPS
@@ -53,6 +53,7 @@ function interferogram = reverse_oct_pipeline(a_scan_processed)
     N = length(I_mag);
     phase = 2*pi*rand(N,1); % but this means each phase is independent
     A_complex = I_mag(:) .* exp(1i*phase(:));
+    %A_complex = I_mag(:);
     
     % A_complex = |A(z)|*e^iϕ|
     
@@ -79,7 +80,7 @@ function interferogram = reverse_oct_pipeline(a_scan_processed)
     % syntax: vq = interp1(x,v,xq)
     % my data rn is at values v defined at locations x
     % i want to estimate same values v at new locations xq
-    S_lambda = interp1(k_lin_phys, S_k_undisp, k, 'cubic');
+    S_lambda = interp1(k_lin_phys, S_k_undisp, k, 'linear'); %linear, cubic, spline doesnt really change it
 
 
     % 7. ADD DC / BACKGROUND OFFSET
@@ -88,35 +89,55 @@ function interferogram = reverse_oct_pipeline(a_scan_processed)
     DC_bg = 50;
     %DC_bg = mean(abs(real(S_lambda)));
 
-    I_raw_lambda = real(S_lambda) + DC_bg + cos(2*pi);
+    I_raw_lambda = S_lambda + DC_bg; %+ cos(2*pi);
     
     interferogram = I_raw_lambda;
 
 
     % PLOT
-    figure;
-
-    % Original processed A-scan (input) with no alteration
-    subplot(1,4,1);
+    % 0. original a-scan
+    subplot(2,4,1);
     plot(a_scan_processed);
-    title('Input A-scan');
+    title('0. original a-scan');
     xlabel('Depth index z'); ylabel('Display units');
 
-    % k-space signal (after undoing dispersion)
-    subplot(1,4,2);
-    plot(abs(S_k_undisp));
-    title('Spectral signal in k-space');
-    xlabel('Sample (k)'); ylabel('|S_k|');
+    % 1. undo 8-bit quantization
+    subplot(2,4,2);
+    plot(I_log);
+    title('1. undo 8-bit quantization');
 
-    % Final interferogram (with DC) in wavelength space
-    subplot(1,4,3);
+    % 2. undo log compression
+    subplot(2,4,3);
+    plot(I_mag);
+    title('2. undo log compression');
+
+    % 3. add phase (undo magnitude)
+    subplot(2,4,4);
+    plot(abs(A_complex));
+    title('3. add phase (undo magnitude) - abs');
+
+    % 4. inverse fft to k-space
+    subplot(2,4,5);
+    plot(abs(S_k));
+    title('4. inverse fft to k-space - abs');
+
+    % 5. undo dispersion compensation (still k-space)
+    subplot(2,4,6);
+    plot(abs(S_k_undisp));
+    title('5. undo dispersion compensation - abs');
+
+    % 6. resampling from linear k to nonlinear
+    subplot(2,4,7);
+    plot(abs(S_lambda));
+    title('6. resampled to nonlinear - abs');
+
+    % final interferogram (with DC) in wavelength space
+    subplot(2,4,8);
+    plot(abs(I_raw_lambda));
+    title('7. raw interferogram with DC - abs');
+    xlabel('nonlinear k=2pi/λ'); ylabel('Intensity');
+
+    figure;
     plot(I_raw_lambda);
-    title('Raw interferogram with DC');
-    xlabel('λ (10^-9)'); ylabel('Intensity');
-    
-    % Just before adding DC
-    subplot(1,4,4);
-    plot(real(S_lambda));
-    title('Raw interferogram before DC');
-    
+    title('8. raw interferogram with DC - no abs from rev script');
 end
