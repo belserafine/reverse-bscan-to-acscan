@@ -1,0 +1,44 @@
+%% reads bscan jpg and converts to raw interferograms
+% uses Bscan_jpg_to_Ascans.m + reverse_oct_pipeline.m
+% will ask you to choose between processing all A-scans in your B-scan file
+% or just one
+%% IF YOU CHOOSE TO PROCESS ALL A-SCANS COMMENT OUT THE PLTOS IN reverse_oct_pipeline.m 
+
+clear; clc; close all;
+
+bscan_file = '/Users/belindaserafine/Documents/School/Capstone/Capstone Datasets/B-Scans/NEH_UT_2021RetinalOCTDataset/NORMAL/1/OS/000_normal.jpg';
+
+A_scans = Bscan_jpg_to_Ascans(bscan_file);
+[num_ascans, depth_pixels] = size(A_scans);
+fprintf('Loaded %d A-scans, each with %d depth pixels.\n', num_ascans, depth_pixels);
+
+choice = menu('What do you want to process?', ...
+              'All A-scans (entire B-scan) COMMENT OUT PLOTS FIRST', ...
+              'Single A-scan');
+
+switch choice
+    case 1
+        % ---- PROCESS ALL A-SCANS ----
+        interferograms = zeros(num_ascans, depth_pixels);
+
+        for i = 1:num_ascans
+            a_disp = A_scans(i, :);
+            interferograms(i, :) = reverse_oct_pipeline(a_disp);
+
+            if i == num_ascans
+                fprintf('Processed %d / %d A-scans\n', i, num_ascans);
+            end
+        end
+
+        save('synthetic_interferograms.mat','interferograms','bscan_file');
+        fprintf('Saved all interferograms.\n');
+
+    case 2
+        % ---- PROCESS SINGLE A-SCAN ----
+        idx = input(sprintf('Enter A-scan index (1–%d): ', num_ascans));
+
+        a_disp = A_scans(idx, :);
+        [raw_a_scan, check] = reverse_oct_pipeline(a_disp);
+
+        fprintf('Processed A-scan %d.\n', idx);
+end
