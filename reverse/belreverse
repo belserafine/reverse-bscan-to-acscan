@@ -1,0 +1,114 @@
+% this is specifically for quick prototyping/testing new methods
+% this code only runs one a_scan from the inteferograms mat file
+% change idx variable if you want another a_scan 
+% manually change idx in the saving name (line 71)
+
+clear; clc; close all;
+
+bscan_file = '/Users/belindaserafine/Documents/School/Capstone/Capstone Datasets/B-Scans/NEH_UT_2021RetinalOCTDataset/NORMAL/1/OS/000_normal.jpg';
+
+A_scans = Bscan_jpg_to_Ascans(bscan_file);
+[num_ascans, depth_pixels] = size(A_scans);
+fprintf('Loaded %d A-scans, each with %d depth pixels.\n', num_ascans, depth_pixels);
+
+%% inputs/parameters
+% A-scan signal
+idx = 10;
+a_log_disp = A_scans(idx,:);
+N = length(a_log_disp);
+
+% display range
+disp_min = min(a_log_disp);
+disp_max = max(a_log_disp);
+
+% lambda-grid
+lambda = linspace(800e-9,900e-9,N);
+
+k = 2*pi ./ lambda; % k = wavenumber
+
+% dispersion phase
+k0 = mean(k); % center wavenumber of the source spectrum
+a2 = 0;
+a3 = 0;
+phi_disp = a2*(k-k0).^2 + a3*(k-k0).^3;
+
+%% STEPS
+% 1. UNDO 8-BIT QUANTIZATION
+
+a_log_disp = double(a_log_disp);
+I_norm = a_log_disp / 255;
+I_log = (I_norm * (disp_max - disp_min)) + disp_min;
+
+
+% 2. UNDO LOG COMPRESSION
+I_mag = 10.^(I_log / 20);
+
+
+% 3. RECONSTRUCT COMPLEX SPECTRUM (ADD PHASE)
+A_complex = I_mag(:);
+
+
+% 4. INVERSE FFT -> k-SPACE SIGNAL
+S_k = ifft(A_complex);
+
+
+% 5. UNDO DISPERSION COMPENSATION
+S_k_undisp = S_k .* exp(-1i * phi_disp(:));
+
+
+% 6. RESAMPLE FROM LINEAR k BACK TO λ GRID
+k_uniform = linspace(min(k), max(k), N);
+S_lambda = interp1(k_uniform, S_k_undisp, k, 'linear');
+
+% 7. ADD DC / BACKGROUND OFFSET
+DC_bg = 50;
+I_raw_lambda = S_lambda + DC_bg;
+interferogram = I_raw_lambda;
+
+%% saving
+save('synthetic_interferogram_idx.mat','interferogram');
+
+%% PLOT
+figure;
+
+% 0. original a-scan
+subplot(2,4,1);
+plot(a_log_disp);
+title('0. original a-scan');
+xlabel('Depth index z'); ylabel('Display units');
+
+% 1. undo 8-bit quantization
+subplot(2,4,2);
+plot(I_log);
+title('1. undo 8-bit quantization');
+
+% 2. undo log compression
+subplot(2,4,3);
+plot(I_mag);
+title('2. undo log compression');
+
+% 3. add phase (undo magnitude)
+subplot(2,4,4);
+plot(abs(A_complex));
+title('3. add phase (undo magnitude) - abs');
+
+% 4. inverse fft to k-space
+subplot(2,4,5);
+plot(abs(S_k));
+title('4. inverse fft to k-space - abs');
+
+% 5. undo dispersion compensation (still k-space)
+subplot(2,4,6);
+plot(abs(S_k_undisp));
+title('5. undo dispersion compensation - abs');
+
+% 6. resampling from linear k to nonlinear
+subplot(2,4,7);
+plot(abs(S_lambda));
+title('6. resample to nonlinear space - abs');
+
+% final interferogram (with DC) in wavelength space
+subplot(2,4,8);
+plot(abs(I_raw_lambda));
+title('7. raw interferogram with DC - abs');
+xlabel('nonlinear k=2pi/λ'); ylabel('Intensity');
