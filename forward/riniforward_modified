@@ -1,0 +1,85 @@
+%% modified to only process one a-scan
+
+%clear; clc; close all;
+%OCT Pipeline
+%Step 1: Load the OCT data
+octData = load("/Users/belindaserafine/Documents/School/Capstone/jpg/synthetic_interferogram_10.mat", 'interferogram');
+interferogram = octData.interferogram;
+%row is a scan (768)
+%column is num of data points in 1 A scan (496)
+%[row, column]
+
+% Extract the current A-scan for processing
+currentAScan = interferogram; 
+
+% 1. Background Subtraction
+%currentAScan = currentAScan - mean(currentAScan);
+currentAScan = currentAScan - 50;
+
+
+% 2. k-linearization
+N = length(currentAScan);
+lambda_min = 800e-9;
+lambda_max = 900e-9;
+lambda = linspace(lambda_min, lambda_max, N); 
+k = 2 * pi ./ lambda; 
+
+kmin = min(k);
+kmax = max(k);
+ 
+%apply the uniform k axis and interpolation
+k_uniform = linspace(kmin, kmax, N);
+currentAScan_uniform = interp1(k, currentAScan, k_uniform, 'linear');
+
+
+% 3. Dispersion compensation
+k0 = mean(k);
+a2 = 0; a3 =0;
+phi = exp(-1i*(a2*(k-k0).^2 + a3*(k-k0).^3)); 
+
+Signal_kfixed = currentAScan_uniform .* phi; 
+
+
+% 4. FFT (depth reconstruction)
+A = fft(Signal_kfixed);
+A_Scan = abs(A);
+
+
+% 5. Log scaling
+ A_Scan_DB = 20*log10(A_Scan);
+
+
+
+figure;
+
+% 0. 
+subplot(2,4,1);
+plot(abs(interferogram));
+title("synthetic raw interferogram - abs")
+
+% 1. 
+subplot(2,4,2);
+plot(abs(currentAScan));
+title("dc removed - abs")
+
+% 2.
+subplot(2,4,3);
+plot(abs(currentAScan_uniform));
+title("resampled/k-linearization - abs")
+
+% 3.
+subplot(2,4,4);
+plot(abs(Signal_kfixed));
+title("dispersion compensation - abs")
+
+% 4. 
+subplot(2,4,5);
+plot(abs(A_Scan));
+title("normalized fft")
+
+% 5. 
+subplot(2,4,6);
+plot(abs(A_Scan_DB));
+title("log scaled")
+
+% 6. greyscale mapping
