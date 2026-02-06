@@ -1,4 +1,6 @@
 % this is the code belreverse modified to test out bijective index permutation
+% see feb 6 demo https://drive.google.com/file/d/1b41aDgd0_HR0GLZxYLM959j4pnz8W28t/view?usp=sharing
+
 % this code only runs one a_scan from the inteferograms mat file
 % change idx variable if you want another a_scan 
 % manually change idx in the saving name (line 71)
