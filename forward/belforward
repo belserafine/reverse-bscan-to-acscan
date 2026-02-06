@@ -1,0 +1,91 @@
+%% NOT FUNCTIONAL %%
+
+%clear; clc; close all;
+
+octData = load("/Users/belindaserafine/Documents/School/Capstone/jpg/synthetic_interferogram_10.mat", 'interferogram');
+interferogram = octData.interferogram;
+size(interferogram) %[row, column] = a_scan # , depth
+
+%% inputs/parameters
+% A-scan signal
+i_raw = interferogram;
+N = length(i_raw);
+
+% display range
+disp_min = min(i_raw);
+disp_max = max(i_raw);
+
+% lambda-grid
+lambda = linspace(800e-9,900e-9,N);
+
+k = 2*pi ./ lambda; % k = wavenumber
+
+% dispersion phase
+k0 = mean(k); % center wavenumber of the source spectrum
+a2 = 1;
+a3 = 1;
+phi_disp = a2*(k-k0).^2 + a3*(k-k0).^3;
+
+%% STEPS
+
+% 1. remove DC
+dc_removed = i_raw - mean(i_raw);
+
+% 2. resample from nonlinear to linear
+k_uniform = linspace(max(k), min(k), N);
+resampled_to_linear = interp1(k, dc_removed, k_uniform, 'linear');
+resampled_to_linear = flip(resampled_to_linear);
+
+% 3. dispersion compensation
+disp_compensation = resampled_to_linear .* exp(1i* phi_disp(:));
+
+% 4. fft
+freq_dom = fft(disp_compensation);
+
+% 5. magnitude
+mag_only = abs(freq_dom);
+
+% 6.log compression
+I_log = 20*log10(mag_only);
+
+% 7. 8-bit quantization
+a_scan_processed = ((I_log - disp_min) / (disp_max - disp_min)) * 255;
+
+
+%% plotting
+% figure;
+% plot(i_raw);
+% title("synthetic raw interferogram without abs")
+
+figure;
+
+% 0. 
+subplot(2,4,1);
+plot(abs(i_raw));
+title("synthetic raw interferogram - abs")
+
+% 1. 
+subplot(2,4,2);
+plot(abs(dc_removed));
+title("dc removed - abs")
+
+% 2.
+subplot(2,4,3);
+plot(abs(resampled_to_linear));
+title("resampled/k-linearization - abs")
+
+% 3.
+subplot(2,4,4);
+plot(abs(freq_dom));
+
+% 4. 
+subplot(2,4,5);
+plot(abs(disp_compensation));
+
+% 5. 
+subplot(2,4,6);
+plot(abs(resampled_to_linear));
+
+% 6. 
+subplot(2,4,7);
+plot(abs(dc_removed));
