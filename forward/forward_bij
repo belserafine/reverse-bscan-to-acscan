@@ -1,5 +1,6 @@
 % used to test out bijective index permutation
 % use this with belreverse_bij
+% see feb 6 demo https://drive.google.com/file/d/1b41aDgd0_HR0GLZxYLM959j4pnz8W28t/view?usp=sharing
 
 clear; clc; close all;
 
