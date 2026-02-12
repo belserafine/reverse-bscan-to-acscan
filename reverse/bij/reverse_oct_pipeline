@@ -1,0 +1,189 @@
+function [interferogram] = reverse_oct_pipeline(a_scan_processed, p)
+    % reverse pipeline: A-scan to interferogram
+   
+    %% inputs/parameters
+    % A-scan signal
+    a_log_disp = a_scan_processed;
+    N = length(a_log_disp);
+    
+    % display range
+    disp_min = min(a_log_disp);
+    disp_max = max(a_log_disp);
+
+    % lambda-grid
+    lambda = linspace(800e-9,900e-9,N);
+
+    k = 2*pi ./ lambda; % k = wavenumber
+    
+    % dispersion phase
+    k0 = mean(k); % center wavenumber of the source spectrum
+    a2 = -4 * 10^-11;
+    a3 = -4 * 10^-14;
+    phi_disp = a2*(k-k0).^2 + a3*(k-k0).^3;
+    
+    %% STEPS
+    % 1. UNDO 8-BIT QUANTIZATION
+    % forward is normalize to 0-1 then scale by 255
+    % forward: a_disp = ((I_log - min) / (max - min)) * 255
+    % 255 because display mostly 8-bit = 2^8 = 256
+    
+    % however this isnt reversible... because we dont know max min of I_log
+
+    a_log_disp = double(a_log_disp);
+    I_norm = a_log_disp / 255; % normalize to 0-1
+    I_log = (I_norm * (disp_max - disp_min)) + disp_min;
+    
+    % Now I_log is in log domain (arbitrary units)
+    
+    a_log_test = ((I_log - disp_min) / (disp_max - disp_min)) * 255;
+
+
+    % 2. UNDO LOG COMPRESSION
+    % Forward: converts linear to db => I_log = 20*log10(I)
+    % Reverse: db to linear =>  I = 10.^(I_log/20)
+    I_mag = 10.^(I_log / 20);
+    
+    % Now I_mag is the magnitude of the FFT of the OCT signal
+
+    I_log_test = 20*log10(I_mag);
+    
+    
+    % 3. RECONSTRUCT COMPLEX SPECTRUM (ADD PHASE)
+    % Forward: Magnitude Computation
+    % Reverse: Add phase because we only have magnitude
+    %N = length(I_mag);
+    %phase = 2*pi*rand(N,1); % but this means each phase is independent
+    %A_complex = I_mag(:) .* exp(1i*phase(:));
+    A_complex = I_mag(:);
+
+    % A_complex = |A(z)|*e^iϕ|
+    
+
+    % 4. INVERSE FFT -> k-SPACE SIGNAL
+    S_k = ifft(A_complex);
+    
+    S_k_test = fft(S_k);
+
+    
+    % 5. UNDO DISPERSION COMPENSATION
+    % Forward: Correcting phase dispersion mismatch between sample and reference arm
+    %          S_corr(k) = S(k).*exp(1i*phi_disp)
+    % Reverse: Removing correction
+    %          S(k) = S_corr(k).*exp(-1i*phi_disp)
+    S_k_undisp = S_k .* exp(-1i * phi_disp(:));
+
+    S_k_undisp_test = S_k_undisp .* exp(1i* phi_disp(:));
+    
+    
+    % 6. RESAMPLE FROM LINEAR k BACK TO λ GRID
+    % resample from linear k back to λ grid
+
+    % k-grid on which S_k_undisp is defined
+    k_uniform = linspace(min(k), max(k), N);
+    
+    % interpolate from uniform k -> non-uniform k(λ)
+    % syntax: vq = interp1(x,v,xq)
+    % my data rn is at values v defined at locations x
+    % v = S_k_undisp
+    % i want to estimate same values v at new locations xq
+    
+    %S_lambda = interp1(k_uniform, S_k_undisp, k, 'linear');
+    S_lambda = S_k_undisp(p);
+
+
+    % 7. ADD DC / BACKGROUND OFFSET
+    DC_bg = 50;
+    %DC_bg = mean(abs(real(S_lambda)));
+
+    I_raw_lambda = S_lambda + DC_bg;
+    
+    interferogram = I_raw_lambda;
+    
+    % PLOT
+    figure;
+
+    % 0. original a-scan
+    subplot(2,4,1);
+    plot(a_scan_processed);
+    title('0. original a-scan');
+    xlabel('Depth index z'); ylabel('Display units');
+
+    % 1. undo 8-bit quantization
+    subplot(2,4,2);
+    plot(I_log);
+    title('1. undo 8-bit quantization');
+
+    % 2. undo log compression
+    subplot(2,4,3);
+    plot(I_mag);
+    title('2. undo log compression');
+
+    % 3. add phase (undo magnitude)
+    subplot(2,4,4);
+    plot(abs(A_complex));
+    title('3. add phase (undo magnitude) - abs');
+
+    % 4. inverse fft to k-space
+    subplot(2,4,5);
+    plot(abs(S_k));
+    title('4. inverse fft to k-space - abs');
+
+    % 5. undo dispersion compensation (still k-space)
+    subplot(2,4,6);
+    plot(abs(S_k_undisp));
+    title('5. undo dispersion compensation - abs');
+
+    % 6. resampling from linear k to nonlinear
+    subplot(2,4,7);
+    plot(abs(S_lambda));
+    title('6. resampled to nonlinear - abs');
+
+    % final interferogram (with DC) in wavelength space
+    subplot(2,4,8);
+    plot(abs(I_raw_lambda));
+    title('7. raw interferogram with DC - abs');
+    xlabel('nonlinear k=2pi/λ'); ylabel('Intensity');
+
+    figure;
+    plot(I_raw_lambda);
+    title('8. raw interferogram with DC - no abs from rev script');
+
+
+    % %% plotting
+    % figure;
+    % 
+    % % 0. 
+    % subplot(2,4,1);
+    % plot(a_log_test);
+    % title("greyscale mapped")
+    % 
+    % % 1. 
+    % subplot(2,4,2);
+    % plot(I_log_test);
+    % title("log compressed")
+    % 
+    % % 2.
+    % subplot(2,4,3);
+    % plot(abs(A_complex));
+    % title("no change (no random phase rn)")
+    % 
+    % % 3.
+    % subplot(2,4,4);
+    % plot(abs(S_k_test));
+    % title("fft")
+    % 
+    % % 4. 
+    % subplot(2,4,5);
+    % plot(abs(S_k_undisp_test));
+    % title("dispersion compensation")
+    % 
+    % % 5. 
+    % subplot(2,4,6);
+    % plot(abs(S_lamba_test));
+    % title("k-linearized")
+    % 
+    % % 6. 
+    % subplot(2,4,7);
+    % plot(abs(I_raw_lambda));
+    % title("DC added")
+end
