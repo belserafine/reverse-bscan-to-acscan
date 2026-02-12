@@ -1,0 +1,62 @@
+clear; clc; close all;
+
+%octData = load("/Users/belindaserafine/Documents/School/Capstone/jpg/synthetic_interferogram_10.mat", 'interferogram');
+octData = load("/Users/belindaserafine/Documents/School/Capstone/jpg/synthetic_interferograms.mat", 'interferograms', 'p');
+
+interferograms = octData.interferograms;
+[num_ascans, depth_pixels] = size(interferograms);
+
+p = octData.p;
+invp(p) = 1:depth_pixels;
+
+
+fprintf('Loaded %d A-scans, each with %d depth pixels.\n', num_ascans, depth_pixels);
+
+fwdprocessed_ascans = zeros([num_ascans, depth_pixels]); 
+
+for i = 1:num_ascans
+    % Extract the current A-scan for processing
+    currentAScan = interferograms(i,:);
+
+    % 1. Background Subtraction
+    %currentAScan = currentAScan - mean(currentAScan);
+    currentAScan = currentAScan - 50;
+
+    % 2. k-linearization
+    N = length(currentAScan);
+    lambda_min = 800e-9;
+    lambda_max = 900e-9;
+    lambda = linspace(lambda_min, lambda_max, N); 
+    k = 2 * pi ./ lambda; 
+
+    kmin = min(k);
+    kmax = max(k);
+
+    %apply the uniform k axis and interpolation
+    k_uniform = linspace(kmin, kmax, N);
+    %currentAScan_uniform = interp1(k, currentAScan, k_uniform, 'linear');
+    %currentAScan_uniform = currentAScan;
+    currentAScan_uniform = currentAScan(invp);
+
+    % 3. Dispersion compensation
+    k0 = mean(k);
+    a2 = -4 * 10^-11;
+    a3 = -4 * 10^-14;
+    phi = exp(1i*(a2*(k-k0).^2 + a3*(k-k0).^3));
+    Signal_kfixed = currentAScan_uniform .* phi;
+
+    % 4. FFT (depth reconstruction)
+    A = fft(Signal_kfixed);
+    A_Scan = abs(A);
+
+    % 5. Log scaling
+    A_Scan_DB = 20*log10(A_Scan);
+
+    fwdprocessed_ascans(i,:) = A_Scan_DB;
+end
+
+figure;
+imagesc(fwdprocessed_ascans.');
+colormap(gray);
+axis image;
+axis ij;
