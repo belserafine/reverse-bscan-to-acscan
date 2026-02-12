@@ -1,5 +1,7 @@
 clear; clc; close all;
 
+% NOTE THE A2 AND A3 COEFFICIENTS! make sure theyre the same reverse and forwards
+
 %octData = load("/Users/belindaserafine/Documents/School/Capstone/jpg/synthetic_interferogram_10.mat", 'interferogram');
 octData = load("/Users/belindaserafine/Documents/School/Capstone/jpg/synthetic_interferograms.mat", 'interferograms', 'p');
 
