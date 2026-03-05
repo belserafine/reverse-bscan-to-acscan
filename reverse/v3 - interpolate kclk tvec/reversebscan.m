@@ -16,14 +16,16 @@ tvec = (0:signal_length-1);
 kclk = 0.05 * rand(1,signal_length) - 0.025;
 kclk = tvec + kclk;
 kclk(1) = 0;
+kclk = round(kclk);
 
 % Define OCT parameters for s4
 maxmin      = [800e-9, 900e-9];
 a_coeffs    = [0, -4 * 10^-11, 0];
 
 % Define background to be subtracted at s6
-mynoise = 0.01 * randn(1, signal_length); % gaussian/white noise with mean = 0, var = 0.01
+mynoise = randn(1, signal_length); % gaussian/white noise with mean = 0, var = 0.01
 mybg = ones(1, signal_length) * mean(bscan, 'all') + mynoise;
+mybg = round(mybg);
 
 % Storage
 raw_signals  = complex(zeros(num_ascans, signal_length));
@@ -41,6 +43,15 @@ for i = 1:num_ascans
     s6 = bg_sub_r(s5, mybg);                % Add background
     raw_signals(i, :) = s6;
 end
+
+% Scale raw values to fit int32
+max_val = max(abs(raw_signals(:)));
+scale = double(intmax('int32')) / max_val;
+raw_signals = raw_signals * scale;
+
+% Round values
+raw_signals_real = round(real(raw_signals));
+raw_signals_im = round(imag(raw_signals));
 
 %% Save parameters and outputs to MAT file
 
